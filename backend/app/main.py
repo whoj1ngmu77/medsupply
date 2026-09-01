@@ -11,7 +11,8 @@ from app.core.exceptions import (integrity_error_handler,
 from app.db.mongo import mongo_client, mongo_db
 from app.db.postgres import engine
 from app.routers import (auth, hospitals, inventory, medicines,
-                         requests, suppliers, warehouses)
+                         requests, shipments, suppliers,
+                         warehouses)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +27,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="MedSupply API",
     description="Emergency Medical Supply Management System - BCSE302L",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -48,11 +49,12 @@ app.include_router(medicines.router)
 app.include_router(suppliers.router)
 app.include_router(inventory.router)
 app.include_router(requests.router)
+app.include_router(shipments.router)
 
 
 @app.get("/")
 def root():
-    return {"service": "MedSupply API", "version": "0.4.0"}
+    return {"service": "MedSupply API", "version": "0.5.0"}
 
 
 @app.get("/health")
