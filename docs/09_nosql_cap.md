@@ -106,8 +106,8 @@ relational schema — costs more.
 | Best for | Consistent transactional data | Variable-shape documents |
 
 ## Reproducing
-python backend/scripts/seed_incidents.py
-curl .../incidents/schema-variation
-curl .../incidents/stats
-curl .../dbms/nosql/cap
 
+    python backend/scripts/seed_incidents.py
+    GET /incidents/schema-variation
+    GET /incidents/stats
+    GET /dbms/nosql/cap
