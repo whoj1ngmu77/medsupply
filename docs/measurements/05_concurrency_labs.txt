@@ -1,0 +1,118 @@
+
+========================================================================
+  A. LOST UPDATE — no locking (UNSAFE)
+========================================================================
+  [2016283755.33ms] T1  BEGIN            transaction started, wants 70 units
+  [2016283755.34ms] T1  READ             SELECT qty_available (no lock)
+  [2016283755.39ms] T2  BEGIN            transaction started, wants 50 units
+  [2016283755.39ms] T2  READ             SELECT qty_available (no lock)
+  [2016283757.73ms] T2  READ_RESULT      saw available=100 (on_hand=100, reserved=0)
+  [2016283764.47ms] T1  READ_RESULT      saw available=100 (on_hand=100, reserved=0)
+  [2016284066.88ms] T1  DECIDE           70 <= 100, proceeding to reserve
+  [2016284068.96ms] T1  UPDATE           SET qty_reserved = 70 (computed from stale read 0 + 70)
+  [2016284071.15ms] T1  COMMIT           committed successfully
+  [2016284362.76ms] T2  DECIDE           50 <= 100, proceeding to reserve
+  [2016284364.17ms] T2  UPDATE           SET qty_reserved = 50 (computed from stale read 0 + 50)
+  [2016284365.62ms] T2  COMMIT           committed successfully
+
+  Stock: 100   T1 wanted 70, T2 wanted 50
+  Granted to: ['T1', 'T2']  (total 120 units)
+  Final: {'qty_on_hand': 100, 'qty_reserved': 50, 'available': 50}
+  OVER-ALLOCATED: True
+  Both transactions read the same value before either wrote. Without a lock, T2's read is stale by the time it writes, so 120 units were promised against 100 in stock — the LOST UPDATE problem.
+
+========================================================================
+  B. SAME SCENARIO — SELECT ... FOR UPDATE (SAFE)
+========================================================================
+  [2016284376.64ms] T1  BEGIN            transaction started, wants 70 units
+  [2016284376.65ms] T1  READ             SELECT qty_available FOR UPDATE
+  [2016284376.72ms] T2  BEGIN            transaction started, wants 50 units
+  [2016284376.72ms] T2  READ             SELECT qty_available FOR UPDATE
+  [2016284378.51ms] T2  READ_RESULT      saw available=100 (on_hand=100, reserved=0)
+  [2016284983.49ms] T2  DECIDE           50 <= 100, proceeding to reserve
+  [2016284985.90ms] T2  UPDATE           SET qty_reserved = 50 (computed from stale read 0 + 50)
+  [2016284988.46ms] T1  READ_RESULT      saw available=50 (on_hand=100, reserved=50)
+  [2016284988.63ms] T2  COMMIT           committed successfully
+  [2016285293.49ms] T1  DECIDE           70 > 50, insufficient stock
+  [2016285295.72ms] T1  ROLLBACK         rolled back, nothing reserved
+
+  Granted to: ['T2']  (total 50 units)
+  Final: {'qty_on_hand': 100, 'qty_reserved': 50, 'available': 50}
+  CORRECT: True
+  SELECT ... FOR UPDATE took an exclusive row lock at read time. The second transaction BLOCKED until the first committed, then re-read the committed value and decided correctly. This is two-phase locking: locks acquired in a growing phase, released only at COMMIT (the shrinking phase).
+
+========================================================================
+  C. DEADLOCK
+========================================================================
+  T1 lock order: Paracetamol-DEMO then Insulin-DEMO
+  T2 lock order: Insulin-DEMO then Paracetamol-DEMO  <-- REVERSED
+
+  [2016285305.13ms] T2  BEGIN              transaction started
+  [2016285305.29ms] T1  BEGIN              transaction started
+  [2016285305.65ms] T2  LOCK_1             acquired exclusive lock on row 2
+  [2016285305.72ms] T1  LOCK_1             acquired exclusive lock on row 1
+  [2016285509.91ms] T2  LOCK_2_WAIT        requesting lock on row 1 (held by the other transaction)
+  [2016285510.29ms] T1  LOCK_2_WAIT        requesting lock on row 2 (held by the other transaction)
+  [2016286512.93ms] T1  LOCK_2             acquired lock on row 2
+ ![2016286514.33ms] T2  DEADLOCK_VICTIM    PostgreSQL detected a cycle and aborted this transaction (SQLSTATE 40P01)
+  [2016286514.49ms] T1  COMMIT             committed — this transaction survived
+
+  Deadlock occurred: True
+  Victim: T2
+  Wait-for cycle: T1 -> T2 -> T1
+
+  Coffman conditions:
+    - Mutual exclusion     FOR UPDATE grants exclusive access to a row
+    - Hold and wait        Each transaction holds one lock while requesting another
+    - No preemption        A lock cannot be forcibly taken from its holder
+    - Circular wait        T1 waits on T2, T2 waits on T1
+
+  Detection: PostgreSQL runs a wait-for graph cycle check when a lock wait exceeds deadlock_timeout (set to 1s here). On finding a cycle it aborts one transaction with SQLSTATE 40P01. Detection is lazy, not continuous — checking on every lock request would cost more than the rare deadlock it prevents.
+
+  Prevention: MedSupply's allocation engine orders its FOR UPDATE by (expiry_date ASC, batch_id ASC). Every transaction acquires locks in the same sequence, so circular wait cannot arise. Breaking any one of the four conditions prevents deadlock; consistent lock ordering breaks circular wait, and it is the cheapest of the four to enforce.
+
+========================================================================
+  D. ROLLBACK (ATOMICITY)
+========================================================================
+  BEGIN                    transaction started  state={'qty_on_hand': 100, 'qty_reserved': 0}
+  UPDATE 1                 reserved += 40 (uncommitted)  state={'qty_on_hand': 100, 'qty_reserved': 40}
+  UPDATE 2                 reserved += 30 (uncommitted)  state={'qty_on_hand': 100, 'qty_reserved': 70}
+  CONSTRAINT VIOLATION     reserved would reach 120 > on_hand 100; CHECK constraint chk_demo_reserved rejected it
+  ROLLBACK                 entire transaction undone  state={'qty_on_hand': 100, 'qty_reserved': 0}
+
+  Atomicity held: True
+  Updates 1 and 2 succeeded and were visible INSIDE the transaction. Update 3 violated a CHECK constraint. On ROLLBACK, all three were discarded — the two successful updates did not survive. Atomicity means all or nothing, not most.
+
+  PostgreSQL writes every change to the Write-Ahead Log BEFORE modifying data pages (the WAL rule). On rollback or crash, uncommitted changes are undone from the log. This is IMMEDIATE UPDATE with UNDO: data pages may be written before commit, so undo information is required. DEFERRED UPDATE (no-undo) would buffer all writes until commit — simpler recovery, but unusable for long transactions.
+
+========================================================================
+  E. SAVEPOINTS (PARTIAL ROLLBACK)
+========================================================================
+  BEGIN                      state={'qty_on_hand': 100, 'qty_reserved': 0}
+  UPDATE A                 reserved += 30  state={'qty_on_hand': 100, 'qty_reserved': 30}
+  SAVEPOINT sp1            marker set
+  ROLLBACK TO sp1          Update B violated the CHECK constraint and was undone; Update A survives  state={'qty_on_hand': 100, 'qty_reserved': 30}
+  UPDATE C                 reserved += 20  state={'qty_on_hand': 100, 'qty_reserved': 50}
+  COMMIT                   durable  state={'qty_on_hand': 100, 'qty_reserved': 50}
+
+  Expected reserved=50, got 50  -> PASS
+  A savepoint is a marker inside a transaction. ROLLBACK TO SAVEPOINT undoes work after the marker while keeping earlier work and the transaction itself alive. Final reserved = 30 (A) + 20 (C) = 50; B's 200 was discarded.
+
+========================================================================
+  F. ISOLATION & DURABILITY
+========================================================================
+  Other session saw (uncommitted): 0
+  Other session saw (after commit): 25
+  Isolation held: True
+  WAL position: 0/3E84920 in 000000010000000000000003
+  Durability settings:
+    fsync                  = on
+    full_page_writes       = on
+    synchronous_commit     = on
+    wal_level              = replica
+
+  With fsync=on and synchronous_commit=on, COMMIT does not return until the WAL record is flushed to durable storage. If the server crashed immediately after, replay would restore the committed change. The WAL LSN above is the exact log position.
+
+========================================================================
+  ALL LABS COMPLETE
+========================================================================
