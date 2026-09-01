@@ -195,6 +195,33 @@ Each table is scanned and aggregated once; the join then operates on
 |---|---|---|---|
 | `v_critical_shortage` | 10,967 ms | 11.5 ms | **954×** |
 | `/analytics/overview` | ~65,000 ms | 137 ms | **474×** |
+| Intermediate rows | 127,083,348 | ~21 per side | **6.3 million×** |
+
+### Plan evidence
+
+The row counts explain the timing far better than the clock does.
+
+**Before** — the join emits 127 million rows to produce 2:
+
+GroupAggregate (actual time=77228.253..77228.271 rows=2)
+-> Incremental Sort (rows=127083348) <- 58s sorting
+-> Nested Loop Left Join (rows=127083348)
+-> Merge Left Join (rows=42502)
+
+
+**After** — each table is reduced before the join:
+
+Hash Right Join (actual time=33.799..33.805 rows=2)
+-> HashAggregate (rows=21)
+-> Seq Scan on emergency_request (rows=25001)
+-> Merge Left Join (rows=2)
+
+
+Note the estimator was not fooled: it predicted `rows=116,822,918`
+against an actual 127,083,348 — accurate to within 9%. The planner
+knew the query was expensive and had no cheaper option available,
+because the cost was inherent to the query's shape. No index or
+planner hint could have helped; only rewriting the query could.
 
 ### Why this matters
 
