@@ -6,6 +6,8 @@ import ConcurrencyLab from './dbms/ConcurrencyLab'
 import DeadlockLab from './dbms/DeadlockLab'
 import RecoveryLab from './dbms/RecoveryLab'
 import NoSqlLab from './dbms/NoSqlLab'
+import BPlusTree from './dbms/BPlusTree'
+import Hashing from './dbms/Hashing'
 
 const TABS = [
   ['indexing', 'Indexing', IndexingLab],
@@ -14,6 +16,8 @@ const TABS = [
   ['deadlock', 'Deadlock', DeadlockLab],
   ['recovery', 'Recovery', RecoveryLab],
   ['nosql', 'NoSQL & CAP', NoSqlLab],
+  ['bplustree', 'B+ Tree', BPlusTree],
+  ['hashing', 'Hashing', Hashing],
 ]
 
 export default function DbmsDemos() {
