@@ -133,3 +133,77 @@ Every index must be maintained on INSERT, UPDATE, and DELETE. With
 60,000 batches and a write-heavy allocation path, each extra index
 slows the transaction that matters most. Indexes were chosen from
 observed query predicates only.
+
+## Unplanned finding: fan-out join in `v_critical_shortage`
+
+The dashboard endpoint `/analytics/overview` took **65 seconds** in
+normal use. Timing each view individually isolated the cause:
+
+| View | Time |
+|---|---|
+| `v_dashboard_kpis` | 2.1 ms |
+| `v_requests_by_day` | 6.5 ms |
+| `v_stock_by_category` | 23.0 ms |
+| **`v_critical_shortage`** | **10,967 ms** |
+
+### Cause
+
+The original view joined `medicine` to BOTH `inventory_batch` and
+`emergency_request` in a single query:
+
+```sql
+FROM medicine m
+LEFT JOIN inventory_batch b   ON b.medicine_id = m.medicine_id
+LEFT JOIN emergency_request r ON r.medicine_id = m.medicine_id
+GROUP BY m.medicine_id, ...
+```
+
+Both are one-to-many from `medicine`, so the join produces the
+**cartesian product** of the two child sets per medicine. A medicine
+with 3,000 batches and 2,500 open requests generates 7.5 million
+intermediate rows — which the aggregate then collapses to one. This is
+a **fan-out join**, and no index can fix it: the cost is in rows
+materialised before aggregation, not in how they are found.
+
+### Fix
+
+Aggregate each side independently in a CTE, then join the already-
+reduced results:
+
+```sql
+WITH avail AS (
+    SELECT medicine_id, SUM(qty_on_hand - qty_reserved) AS total_available
+    FROM inventory_batch WHERE expiry_date > CURRENT_DATE
+    GROUP BY medicine_id
+),
+open_req AS (
+    SELECT medicine_id, COUNT(*) AS open_requests
+    FROM emergency_request
+    WHERE request_status IN ('PENDING','PARTIAL')
+    GROUP BY medicine_id
+)
+SELECT ... FROM medicine m
+LEFT JOIN avail a ON ... LEFT JOIN open_req o ON ...
+```
+
+Each table is scanned and aggregated once; the join then operates on
+~22 rows per side.
+
+### Result
+
+| | Before | After | Improvement |
+|---|---|---|---|
+| `v_critical_shortage` | 10,967 ms | 11.5 ms | **954×** |
+| `/analytics/overview` | ~65,000 ms | 137 ms | **474×** |
+
+### Why this matters
+
+Every other optimization in this report came from adding an index.
+This one could not have: the query was already using indexes to find
+its rows. The cost was structural — the wrong join shape. **Query
+rewriting and index selection are separate tools, and rewriting is the
+more powerful of the two when the plan shape itself is wrong.**
+
+The finding also came from real usage rather than a planned benchmark,
+which is how most production performance problems are actually
+discovered.

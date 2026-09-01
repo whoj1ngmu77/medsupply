@@ -1,0 +1,55 @@
+Pager usage is off.
+                                                                         QUERY PLAN                                                                          
+-------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=1154302.06..24752137.26 rows=6 width=42) (actual time=77228.253..77228.271 rows=2 loops=1)
+   Group Key: m.medicine_id
+   Filter: (COALESCE(sum((b.qty_on_hand - b.qty_reserved)), '0'::bigint) < 500)
+   Rows Removed by Filter: 17
+   Buffers: shared hit=13566, temp read=1844859 written=1848009
+   ->  Incremental Sort  (cost=1154302.06..23291850.55 rows=116822918 width=47) (actual time=3176.757..61791.635 rows=127083348 loops=1)
+         Sort Key: m.medicine_id, r.request_id
+         Presorted Key: m.medicine_id
+         Full-sort Groups: 18  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+         Pre-sorted Groups: 17  Sort Method: external merge  Average Disk: 461330kB  Peak Disk: 499272kB
+         Buffers: shared hit=13566, temp read=1844859 written=1848009
+         ->  Nested Loop Left Join  (cost=5565.30..1471263.26 rows=116822918 width=47) (actual time=193.181..16051.239 rows=127083348 loops=1)
+               Buffers: shared hit=13566
+               ->  Merge Left Join  (cost=5523.37..6205.32 rows=43184 width=39) (actual time=192.973..229.407 rows=42502 loops=1)
+                     Merge Cond: (m.medicine_id = r.medicine_id)
+                     Buffers: shared hit=1120
+                     ->  Sort  (cost=1.68..1.73 rows=19 width=26) (actual time=181.636..181.689 rows=19 loops=1)
+                           Sort Key: m.medicine_id
+                           Sort Method: quicksort  Memory: 26kB
+                           Buffers: shared hit=1
+                           ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=19 width=26) (actual time=181.621..181.625 rows=19 loops=1)
+                                 Filter: ((criticality)::text = ANY ('{ESSENTIAL,LIFE_SAVING}'::text[]))
+                                 Rows Removed by Filter: 3
+                                 Buffers: shared hit=1
+                     ->  Sort  (cost=5521.70..5646.70 rows=50003 width=17) (actual time=10.855..35.318 rows=50003 loops=1)
+                           Sort Key: r.medicine_id
+                           Sort Method: quicksort  Memory: 3594kB
+                           Buffers: shared hit=1119
+                           ->  Seq Scan on emergency_request r  (cost=0.00..1619.03 rows=50003 width=17) (actual time=0.014..3.981 rows=50003 loops=1)
+                                 Buffers: shared hit=1119
+               ->  Memoize  (cost=41.92..218.31 rows=2705 width=12) (actual time=0.000..0.121 rows=2990 loops=42502)
+                     Cache Key: m.medicine_id
+                     Cache Mode: logical
+                     Hits: 42483  Misses: 19  Evictions: 0  Overflows: 0  Memory Usage: 2186kB
+                     Buffers: shared hit=12446
+                     ->  Bitmap Heap Scan on inventory_batch b  (cost=41.91..218.30 rows=2705 width=12) (actual time=0.214..1.327 rows=2675 loops=19)
+                           Recheck Cond: ((medicine_id = m.medicine_id) AND (expiry_date > CURRENT_DATE))
+                           Heap Blocks: exact=12323
+                           Buffers: shared hit=12446
+                           ->  Bitmap Index Scan on idx_batch_med_expiry  (cost=0.00..41.24 rows=2705 width=0) (actual time=0.154..0.154 rows=2675 loops=19)
+                                 Index Cond: ((medicine_id = m.medicine_id) AND (expiry_date > CURRENT_DATE))
+                                 Buffers: shared hit=123
+ Planning:
+   Buffers: shared hit=405
+ Planning Time: 0.719 ms
+ JIT:
+   Functions: 30
+   Options: Inlining true, Optimization true, Expressions true, Deforming true
+   Timing: Generation 1.209 ms, Inlining 75.770 ms, Optimization 60.926 ms, Emission 45.251 ms, Total 183.157 ms
+ Execution Time: 77297.356 ms
+(50 rows)
+

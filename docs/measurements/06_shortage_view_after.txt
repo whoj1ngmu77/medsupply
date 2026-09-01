@@ -1,0 +1,50 @@
+Pager usage is off.
+                                                                        QUERY PLAN                                                                        
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Right Join  (cost=3953.66..3954.22 rows=6 width=42) (actual time=33.799..33.805 rows=2 loops=1)
+   Hash Cond: (emergency_request.medicine_id = m.medicine_id)
+   Buffers: shared hit=1855
+   ->  HashAggregate  (cost=1869.12..1869.33 rows=21 width=12) (actual time=13.829..13.832 rows=21 loops=1)
+         Group Key: emergency_request.medicine_id
+         Batches: 1  Memory Usage: 24kB
+         Buffers: shared hit=1119
+         ->  Seq Scan on emergency_request  (cost=0.00..1744.04 rows=25017 width=4) (actual time=0.025..10.992 rows=25001 loops=1)
+               Filter: ((request_status)::text = ANY ('{PENDING,PARTIAL}'::text[]))
+               Rows Removed by Filter: 25002
+               Buffers: shared hit=1119
+   ->  Hash  (cost=2084.46..2084.46 rows=6 width=34) (actual time=19.954..19.957 rows=2 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 9kB
+         Buffers: shared hit=736
+         ->  Merge Left Join  (cost=2084.02..2084.46 rows=6 width=34) (actual time=19.943..19.947 rows=2 loops=1)
+               Merge Cond: (m.medicine_id = a.medicine_id)
+               Filter: (COALESCE(a.total_available, '0'::bigint) < 500)
+               Rows Removed by Filter: 17
+               Buffers: shared hit=736
+               ->  Sort  (cost=1.68..1.73 rows=19 width=26) (actual time=0.051..0.053 rows=19 loops=1)
+                     Sort Key: m.medicine_id
+                     Sort Method: quicksort  Memory: 26kB
+                     Buffers: shared hit=1
+                     ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=19 width=26) (actual time=0.017..0.019 rows=19 loops=1)
+                           Filter: ((criticality)::text = ANY ('{ESSENTIAL,LIFE_SAVING}'::text[]))
+                           Rows Removed by Filter: 3
+                           Buffers: shared hit=1
+               ->  Sort  (cost=2082.34..2082.39 rows=22 width=12) (actual time=19.882..19.884 rows=22 loops=1)
+                     Sort Key: a.medicine_id
+                     Sort Method: quicksort  Memory: 25kB
+                     Buffers: shared hit=735
+                     ->  Subquery Scan on a  (cost=2081.41..2081.85 rows=22 width=12) (actual time=19.862..19.867 rows=22 loops=1)
+                           Buffers: shared hit=735
+                           ->  HashAggregate  (cost=2081.41..2081.63 rows=22 width=12) (actual time=19.861..19.864 rows=22 loops=1)
+                                 Group Key: inventory_batch.medicine_id
+                                 Batches: 1  Memory Usage: 24kB
+                                 Buffers: shared hit=735
+                                 ->  Seq Scan on inventory_batch  (cost=0.00..1635.05 rows=59515 width=12) (actual time=0.008..13.623 rows=59803 loops=1)
+                                       Filter: (expiry_date > CURRENT_DATE)
+                                       Rows Removed by Filter: 200
+                                       Buffers: shared hit=735
+ Planning:
+   Buffers: shared hit=568
+ Planning Time: 1.981 ms
+ Execution Time: 33.919 ms
+(45 rows)
+
