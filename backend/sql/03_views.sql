@@ -27,22 +27,30 @@ JOIN medicine  m ON m.medicine_id  = b.medicine_id
 WHERE b.expiry_date > CURRENT_DATE;
 
 CREATE VIEW v_critical_shortage AS
-SELECT
-    m.medicine_id,
-    m.name AS medicine_name,
-    m.criticality,
-    COALESCE(SUM(b.qty_on_hand - b.qty_reserved), 0) AS total_available,
-    COUNT(DISTINCT r.request_id) FILTER (
-        WHERE r.request_status IN ('PENDING','PARTIAL')
-    ) AS open_requests
+-- NOTE: aggregate each child table separately before joining.
+-- Joining medicine to BOTH inventory_batch and emergency_request in one
+-- query produces a fan-out cartesian product (10,967ms -> 11.5ms).
+-- See docs/05_indexing_report.md.
+WITH avail AS (
+    SELECT medicine_id, SUM(qty_on_hand - qty_reserved) AS total_available
+    FROM inventory_batch
+    WHERE expiry_date > CURRENT_DATE
+    GROUP BY medicine_id
+),
+open_req AS (
+    SELECT medicine_id, COUNT(*) AS open_requests
+    FROM emergency_request
+    WHERE request_status IN ('PENDING','PARTIAL')
+    GROUP BY medicine_id
+)
+SELECT m.medicine_id, m.name AS medicine_name, m.criticality,
+       COALESCE(a.total_available, 0) AS total_available,
+       COALESCE(o.open_requests, 0) AS open_requests
 FROM medicine m
-LEFT JOIN inventory_batch b
-       ON b.medicine_id = m.medicine_id AND b.expiry_date > CURRENT_DATE
-LEFT JOIN emergency_request r
-       ON r.medicine_id = m.medicine_id
+LEFT JOIN avail a    ON a.medicine_id = m.medicine_id
+LEFT JOIN open_req o ON o.medicine_id = m.medicine_id
 WHERE m.criticality IN ('ESSENTIAL','LIFE_SAVING')
-GROUP BY m.medicine_id, m.name, m.criticality
-HAVING COALESCE(SUM(b.qty_on_hand - b.qty_reserved), 0) < 500;
+  AND COALESCE(a.total_available, 0) < 500;
 
 CREATE VIEW v_expiring_soon AS
 SELECT
