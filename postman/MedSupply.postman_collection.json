@@ -1,0 +1,161 @@
+{
+  "info": {
+    "name": "MedSupply — BCSE302L",
+    "description": "Emergency Medical Supply Management System.\n\nRun 'Login (admin)' first — it saves the JWT to a collection variable used by every other request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "token", "value": "" },
+    { "key": "requestId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('200', () => pm.response.to.have.status(200));",
+              "const b = pm.response.json();",
+              "pm.collectionVariables.set('token', b.access_token);",
+              "pm.test('no password hash leaked', () => {",
+              "  pm.expect(JSON.stringify(b)).to.not.include('password_hash');",
+              "});"
+            ]}
+          }],
+          "request": {
+            "method": "POST", "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin@12345\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Login — wrong password (expect 401)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401', () => pm.response.to.have.status(401));"
+          ]}}],
+          "request": {
+            "method": "POST", "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrong\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "SQL injection attempt (expect 401)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('injection neutralised', () => pm.response.to.have.status(401));"
+          ]}}],
+          "request": {
+            "method": "POST", "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin' OR '1'='1\",\n  \"password\": \"x\"\n}" },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        { "name": "Current user", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } }
+      ]
+    },
+    {
+      "name": "Core data",
+      "item": [
+        { "name": "Hospitals", "request": { "method": "GET", "url": "{{baseUrl}}/hospitals?limit=10" } },
+        { "name": "Medicines — life saving", "request": { "method": "GET", "url": "{{baseUrl}}/medicines?criticality=LIFE_SAVING" } },
+        { "name": "Warehouse utilisation", "request": { "method": "GET", "url": "{{baseUrl}}/warehouses/utilisation" } },
+        { "name": "Inventory — available FEFO", "request": { "method": "GET", "url": "{{baseUrl}}/inventory/available?limit=10" } },
+        { "name": "Inventory — expiring", "request": { "method": "GET", "url": "{{baseUrl}}/inventory/expiring?limit=10" } },
+        { "name": "Suppliers", "request": { "method": "GET", "url": "{{baseUrl}}/suppliers?limit=10" } }
+      ]
+    },
+    {
+      "name": "Allocation (ACID transaction)",
+      "item": [
+        {
+          "name": "Allocation queue",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const b = pm.response.json();",
+            "if (b.length) pm.collectionVariables.set('requestId', b[0].request_id);"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/requests/queue?limit=5" }
+        },
+        {
+          "name": "Allocate (FEFO, row-locked)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('allocated or conflict', () => pm.expect([200,409]).to.include(pm.response.code));",
+            "if (pm.response.code === 200) {",
+            "  const b = pm.response.json();",
+            "  pm.test('does not exceed request', () => {",
+            "    pm.expect(b.qty_allocated).to.be.at.most(b.qty_requested);",
+            "  });",
+            "}"
+          ]}}],
+          "request": { "method": "POST", "url": "{{baseUrl}}/requests/{{requestId}}/allocate" }
+        },
+        { "name": "Allocations for request", "request": { "method": "GET", "url": "{{baseUrl}}/requests/{{requestId}}/allocations" } },
+        { "name": "Audit trail", "request": { "method": "GET", "url": "{{baseUrl}}/requests/{{requestId}}/events" } }
+      ]
+    },
+    {
+      "name": "DBMS demonstrations",
+      "item": [
+        { "name": "Index benchmark — composite", "request": { "method": "GET", "url": "{{baseUrl}}/dbms/benchmarks/batch_by_warehouse_medicine" } },
+        { "name": "Index benchmark — partial", "request": { "method": "GET", "url": "{{baseUrl}}/dbms/benchmarks/open_critical_requests" } },
+        { "name": "Optimization — index vs seq scan", "request": { "method": "GET", "url": "{{baseUrl}}/dbms/optimization/index_vs_seqscan" } },
+        {
+          "name": "Concurrency — UNSAFE (lost update)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const b = pm.response.json();",
+            "pm.test('reproduces lost update', () => pm.expect(b.over_allocated).to.be.true);"
+          ]}}],
+          "request": { "method": "POST", "url": "{{baseUrl}}/dbms/concurrency?use_lock=false" }
+        },
+        {
+          "name": "Concurrency — SAFE (FOR UPDATE)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const b = pm.response.json();",
+            "pm.test('no over-allocation', () => pm.expect(b.correct).to.be.true);"
+          ]}}],
+          "request": { "method": "POST", "url": "{{baseUrl}}/dbms/concurrency?use_lock=true" }
+        },
+        {
+          "name": "Deadlock",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const b = pm.response.json();",
+            "pm.test('deadlock detected', () => pm.expect(b.deadlock_occurred).to.be.true);",
+            "pm.test('victim chosen', () => pm.expect(b.victim).to.be.oneOf(['T1','T2']));"
+          ]}}],
+          "request": { "method": "POST", "url": "{{baseUrl}}/dbms/deadlock" }
+        },
+        { "name": "Recovery — rollback", "request": { "method": "POST", "url": "{{baseUrl}}/dbms/recovery/rollback" } },
+        { "name": "Recovery — savepoint", "request": { "method": "POST", "url": "{{baseUrl}}/dbms/recovery/savepoint" } },
+        { "name": "CAP analysis", "request": { "method": "GET", "url": "{{baseUrl}}/dbms/nosql/cap" } }
+      ]
+    },
+    {
+      "name": "MongoDB",
+      "item": [
+        { "name": "Incidents", "request": { "method": "GET", "url": "{{baseUrl}}/incidents?limit=10" } },
+        {
+          "name": "Schema variation",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "const s = pm.response.json().samples;",
+            "pm.test('types differ in shape', () => {",
+            "  const sets = Object.values(s).map(x => x.detail_fields.join(','));",
+            "  pm.expect(new Set(sets).size).to.equal(sets.length);",
+            "});"
+          ]}}],
+          "request": { "method": "GET", "url": "{{baseUrl}}/incidents/schema-variation" }
+        },
+        { "name": "Aggregation stats", "request": { "method": "GET", "url": "{{baseUrl}}/incidents/stats" } }
+      ]
+    }
+  ]
+}

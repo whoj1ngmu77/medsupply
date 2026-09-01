@@ -1,0 +1,149 @@
+Pager usage is off.
+=== C1: Correlated subquery — hospitals above their city average ===
+               name               |    city    | bed_capacity | city_avg 
+----------------------------------+------------+--------------+----------
+ Tirunelveli General Hospital 144 | Chennai    |         1200 |      556
+ Hosur General Hospital 23        | Chennai    |         1200 |      556
+ Chennai General Hospital 89      | Chennai    |         1200 |      556
+ Coimbatore General Hospital 186  | Chennai    |         1200 |      556
+ Salem General Hospital 140       | Chennai    |          800 |      556
+ Tirunelveli General Hospital 9   | Coimbatore |         1200 |      454
+ Tirunelveli General Hospital 32  | Coimbatore |         1200 |      454
+ Chennai General Hospital 132     | Coimbatore |         1200 |      454
+ Vellore General Hospital 129     | Coimbatore |          800 |      454
+ Madurai General Hospital 73      | Coimbatore |          800 |      454
+(10 rows)
+
+
+=== C2: Window functions — rank within category ===
+ category_name  |   medicine_name    | available | rank_in_cat | pct_of_category 
+----------------+--------------------+-----------+-------------+-----------------
+ Analgesics     | Ibuprofen          |   6818235 |           1 |            34.2
+ Analgesics     | Morphine           |   6579959 |           2 |            33.0
+ Analgesics     | Paracetamol        |   6543143 |           3 |            32.8
+ Antibiotics    | Amoxicillin        |   6791007 |           1 |            34.4
+ Antibiotics    | Meropenem          |   6605082 |           2 |            33.5
+ Antibiotics    | Azithromycin       |   6328827 |           3 |            32.1
+ Antivirals     | Remdesivir         |   6653962 |           1 |            51.2
+ Antivirals     | Oseltamivir        |   6350743 |           2 |            48.8
+ Cardiovascular | Heparin            |   6673996 |           1 |            33.5
+ Cardiovascular | Adrenaline         |   6641781 |           2 |            33.4
+ Cardiovascular | Atenolol           |   6590647 |           3 |            33.1
+ Emergency      | Tranexamic Acid    |   6744380 |           1 |            33.4
+ Emergency      | Atropine           |   6737868 |           2 |            33.3
+ Emergency      | Naloxone           |   6733013 |           3 |            33.3
+ Endocrine      | Insulin            |   6546903 |           1 |            50.4
+ Endocrine      | Levothyroxine      |   6444489 |           2 |            49.6
+ Fluids         | Ringer Lactate     |   6440695 |           1 |            50.4
+ Fluids         | Normal Saline      |   6337422 |           2 |            49.6
+ Respiratory    | Salbutamol         |   6742893 |           1 |            50.8
+ Respiratory    | Oxygen Concentrate |   6540677 |           2 |            49.2
+(20 rows)
+
+
+=== C3: Division — hospitals requesting EVERY life-saving medicine ===
+ hospital_id |              name              |    city    
+-------------+--------------------------------+------------
+           1 | Chennai General Hospital 1     | Trichy
+           2 | Erode General Hospital 2       | Coimbatore
+           3 | Salem General Hospital 3       | Chennai
+           4 | Madurai General Hospital 4     | Trichy
+           5 | Hosur General Hospital 5       | Thanjavur
+           6 | Thanjavur General Hospital 6   | Madurai
+           7 | Tirunelveli General Hospital 7 | Chennai
+           8 | Madurai General Hospital 8     | Vellore
+           9 | Tirunelveli General Hospital 9 | Coimbatore
+          10 | Erode General Hospital 10      | Salem
+(10 rows)
+
+
+=== C4: Set difference — medicines requested but never supplied ===
+ medicine_id |        name        | criticality 
+-------------+--------------------+-------------
+           8 | Remdesivir         | LIFE_SAVING
+          11 | Heparin            | LIFE_SAVING
+          19 | Normal Saline      | ESSENTIAL
+           4 | Amoxicillin        | ESSENTIAL
+          14 | Salbutamol         | ESSENTIAL
+           3 | Morphine           | LIFE_SAVING
+          17 | Naloxone           | LIFE_SAVING
+          20 | Ringer Lactate     | ESSENTIAL
+          13 | Levothyroxine      | ROUTINE
+           7 | Oseltamivir        | ESSENTIAL
+          10 | Adrenaline         | LIFE_SAVING
+           9 | Atenolol           | ESSENTIAL
+           5 | Azithromycin       | ESSENTIAL
+          18 | Tranexamic Acid    | LIFE_SAVING
+           2 | Ibuprofen          | ROUTINE
+          16 | Atropine           | LIFE_SAVING
+          15 | Oxygen Concentrate | LIFE_SAVING
+           6 | Meropenem          | LIFE_SAVING
+          12 | Insulin            | LIFE_SAVING
+(19 rows)
+
+
+=== C5: Recursive CTE — expiry cohort buckets ===
+    window    | batches |  units  
+--------------+---------+---------
+ 0-30 days    |    1366 | 3053758
+ 30-60 days   |    1751 | 3832105
+ 60-90 days   |    1893 | 4250831
+ 90-120 days  |    2132 | 4723281
+ 120-150 days |    2293 | 5020107
+ 150-180 days |    2350 | 5113435
+(6 rows)
+
+
+=== C6: LATERAL join — top 2 batches per medicine ===
+      medicine      | batch_number | qty_available | expiry_date 
+--------------------+--------------+---------------+-------------
+ Adrenaline         | B012-0055417 |          2134 | 2026-09-02
+ Adrenaline         | B033-0007791 |          2504 | 2026-09-03
+ Atropine           | B030-0038610 |          3085 | 2026-09-03
+ Atropine           | B031-0025918 |            88 | 2026-09-03
+ Heparin            | B003-0009154 |          2652 | 2026-09-02
+ Heparin            | B009-0008708 |          2069 | 2026-09-02
+ Insulin            | B034-0017265 |          1323 | 2026-09-02
+ Insulin            | B003-0016351 |          3246 | 2026-09-03
+ Meropenem          | B011-0010865 |          1317 | 2026-09-02
+ Meropenem          | B027-0013266 |           188 | 2026-09-02
+ Morphine           | B029-0007824 |          4594 | 2026-09-03
+ Morphine           | B039-0014404 |          2926 | 2026-09-03
+ Naloxone           | B022-0022532 |          2988 | 2026-09-02
+ Naloxone           | B020-0017886 |          4300 | 2026-09-02
+ Oxygen Concentrate | B032-0003471 |          4219 | 2026-09-02
+ Oxygen Concentrate | B001-0004630 |          2940 | 2026-09-02
+(16 rows)
+
+
+=== C7: FILTER + HAVING — hospitals with high critical ratio ===
+              name              |   city    | total_requests | critical | critical_pct 
+--------------------------------+-----------+----------------+----------+--------------
+ Thanjavur General Hospital 59  | Vellore   |            242 |       37 |         15.3
+ Thanjavur General Hospital 121 | Vellore   |            227 |       34 |         15.0
+ Salem General Hospital 15      | Erode     |            248 |       36 |         14.5
+ Chennai General Hospital 1     | Trichy    |            237 |       33 |         13.9
+ Chennai General Hospital 192   | Erode     |            208 |       29 |         13.9
+ Thanjavur General Hospital 183 | Chennai   |            272 |       37 |         13.6
+ Chennai General Hospital 40    | Thanjavur |            278 |       37 |         13.3
+ Erode General Hospital 64      | Salem     |            249 |       33 |         13.3
+ Hosur General Hospital 113     | Madurai   |            219 |       29 |         13.2
+ Vellore General Hospital 198   | Vellore   |            242 |       32 |         13.2
+(10 rows)
+
+
+=== C8: Self-join — warehouses in the same city ===
+         warehouse_a          |         warehouse_b          |    city    
+------------------------------+------------------------------+------------
+ Central Medical Warehouse 14 | Central Medical Warehouse 23 | Chennai
+ Central Medical Warehouse 14 | Central Medical Warehouse 16 | Chennai
+ Central Medical Warehouse 14 | Central Medical Warehouse 32 | Chennai
+ Central Medical Warehouse 23 | Central Medical Warehouse 32 | Chennai
+ Central Medical Warehouse 16 | Central Medical Warehouse 23 | Chennai
+ Central Medical Warehouse 16 | Central Medical Warehouse 32 | Chennai
+ Central Medical Warehouse 10 | Central Medical Warehouse 36 | Coimbatore
+ Central Medical Warehouse 30 | Central Medical Warehouse 35 | Erode
+ Central Medical Warehouse 27 | Central Medical Warehouse 30 | Erode
+ Central Medical Warehouse 27 | Central Medical Warehouse 35 | Erode
+(10 rows)
+
