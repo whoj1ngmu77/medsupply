@@ -1,53 +1,47 @@
-import { useEffect, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import Layout from './components/Layout'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import Hospitals from './pages/Hospitals'
+import Medicines from './pages/Medicines'
+import Warehouses from './pages/Warehouses'
+import Inventory from './pages/Inventory'
+import Requests from './pages/Requests'
+import Shipments from './pages/Shipments'
+import Suppliers from './pages/Suppliers'
+import Incidents from './pages/Incidents'
+import Analytics from './pages/Analytics'
 
-export default function App() {
-  const [health, setHealth] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch((e) => setError(e.message))
-  }, [])
-
-  const Pill = ({ label, state }) => (
-    <div className="flex items-center justify-between rounded-lg bg-slate-800/60 px-4 py-3">
-      <span className="text-slate-300">{label}</span>
-      <span
-        className={
-          state === 'ok'
-            ? 'rounded-full bg-emerald-500/15 px-3 py-1 text-sm text-emerald-400'
-            : 'rounded-full bg-rose-500/15 px-3 py-1 text-sm text-rose-400'
-        }
-      >
-        {state ?? '-'}
-      </span>
-    </div>
-  )
+function Shell() {
+  const { user } = useAuth()
+  if (!user) return <Login />
 
   return (
-    <div className="min-h-screen bg-slate-950 p-8 text-slate-100">
-      <div className="mx-auto max-w-xl">
-        <h1 className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-3xl font-bold text-transparent">
-          MedSupply
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Emergency Medical Supply Management - BCSE302L
-        </p>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="hospitals" element={<Hospitals />} />
+          <Route path="medicines" element={<Medicines />} />
+          <Route path="warehouses" element={<Warehouses />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="requests" element={<Requests />} />
+          <Route path="shipments" element={<Shipments />} />
+          <Route path="suppliers" element={<Suppliers />} />
+          <Route path="incidents" element={<Incidents />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
 
-        <div className="mt-8 space-y-3">
-          <Pill label="API" state={health?.api} />
-          <Pill label="PostgreSQL" state={health?.postgres} />
-          <Pill label="MongoDB" state={health?.mongodb} />
-        </div>
-
-        {error && (
-          <p className="mt-4 text-sm text-rose-400">
-            Cannot reach backend: {error}
-          </p>
-        )}
-      </div>
-    </div>
+export default function App() {
+  return (
+    <AuthProvider>
+      <Shell />
+    </AuthProvider>
   )
 }
