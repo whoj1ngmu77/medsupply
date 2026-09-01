@@ -1,0 +1,79 @@
+# Full stack: databases + backend + frontend.
+#   docker compose -f docker-compose.full.yml up -d --build
+# Frontend on http://localhost:3000, API on http://localhost:8000
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: medsupply_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medsupply
+      POSTGRES_PASSWORD: medsupply_dev_pw
+      POSTGRES_DB: medsupply
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    command:
+      - "postgres"
+      - "-c"
+      - "log_statement=all"
+      - "-c"
+      - "deadlock_timeout=1s"
+      - "-c"
+      - "log_lock_waits=on"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medsupply -d medsupply"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    container_name: medsupply_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: medsupply
+      MONGO_INITDB_ROOT_PASSWORD: medsupply_dev_pw
+      MONGO_INITDB_DATABASE: medsupply_incidents
+    ports: ["27017:27017"]
+    volumes: [mongodata:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: medsupply_api
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medsupply
+      POSTGRES_PASSWORD: medsupply_dev_pw
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: medsupply
+      MONGO_USER: medsupply
+      MONGO_PASSWORD: medsupply_dev_pw
+      MONGO_HOST: mongo
+      MONGO_PORT: 27017
+      MONGO_DB: medsupply_incidents
+      JWT_SECRET: change_me_for_any_real_deployment
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      ENABLE_DBMS_DEMOS: "true"
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+
+  frontend:
+    build: ./frontend
+    container_name: medsupply_web
+    restart: unless-stopped
+    ports: ["3000:80"]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
+  mongodata:
