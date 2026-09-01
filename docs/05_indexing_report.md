@@ -31,15 +31,46 @@ Or live via the API: `GET /dbms/benchmarks/{key}`.
 
 ## Measured Results
 
-<!-- Fill from your own docs/measurements/ output -->
-
-| Query | Before | After | Rows discarded before | after |
+| Query | Before | After | Speedup | Rows discarded (before → after) |
 |---|---|---|---|---|
-| Q1 batch by warehouse+medicine | | | 1464 | |
-| Q2 expiry range | | | | |
-| Q3 open critical requests | | | | |
-| Q4 FEFO selection | | | | |
-| Q5 hospital history | | | | |
+| Q1 batch by warehouse+medicine | Bitmap Heap on `uq_batch_natural`, 5.64 ms | Bitmap Heap on `idx_batch_wh_med`, 0.33 ms | **17×** | 1,464 → **0** |
+| Q2 expiry range | Seq Scan, 5.62 ms | Bitmap Heap on `idx_batch_expiry`, 2.09 ms | 2.7× | 55,371 → **0** |
+| Q3 open critical requests | Seq Scan, 6.51 ms | Bitmap Heap on `idx_request_open`, 1.11 ms | 5.9× | 48,256 → **0** |
+| Q4 FEFO selection | Seq Scan, 4.38 ms | Bitmap Heap on `idx_batch_fefo`, 1.91 ms | 2.3× | 57,238 → **0** |
+| Q5 hospital history | Seq Scan, 2.03 ms | **Index Scan** on `idx_request_hospital`, 0.05 ms | **38×** | 49,744 → **0** |
+| Q6 shortage join | Seq Scan ×2, 13.43 ms | Seq Scan ×2, 13.16 ms | ~1× (unchanged) | 4,804 → 4,804 |
+
+All six queries eliminated `Rows Removed by Filter` except Q6, which
+was correctly left as a sequential scan (see findings).
+
+### Q5: the best case for an index
+
+Q5 is the only plain Index Scan and the largest speedup (38×). The
+index `(hospital_id, requested_at DESC)` serves the filter, the sort
+direction, AND the `LIMIT 50` — PostgreSQL reads exactly 50 index
+entries and stops. No sort node, no discarded rows, no full scan.
+
+### Q6: no improvement, and that is correct
+
+Q6 aggregates 55,199 of 60,000 batches — 92% of the table. A
+sequential scan is the right plan; `idx_medicine_criticality` was
+not used because scanning 20 medicine rows is cheaper than an index
+lookup. Reported as a finding, not a failure.
+
+### Estimated cost vs actual time
+
+Q1's estimated cost fell from 772 to 224, tracking the real
+improvement. Q5's estimate stayed high (808) while actual time was
+0.042 ms, because `LIMIT` short-circuits execution after 50 rows —
+the planner's cost model prices the full scan it did not perform.
+
+### A caching caveat, stated honestly
+
+All plans show `Buffers: shared hit` and no `shared read`: the
+dataset fits in PostgreSQL's buffer cache, so these timings measure
+CPU and tuple-processing work, not disk I/O. On a cold cache the
+gaps would be far larger. This is why `Rows Removed by Filter` is
+reported as the primary metric — it is independent of cache state.
 
 ## Findings
 
