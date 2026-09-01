@@ -1,0 +1,37 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-8.3.4, pluggy-1.6.0 -- /opt/anaconda3/envs/medsupply/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/gayathri/projects/medsupply/backend
+configfile: pytest.ini
+testpaths: tests
+plugins: Faker-33.1.0, anyio-4.14.2
+collecting ... collected 20 items
+
+tests/test_allocation.py::test_never_over_allocates PASSED               [  5%]
+tests/test_allocation.py::test_partial_allocation PASSED                 [ 10%]
+tests/test_allocation.py::test_rollback_leaves_no_trace PASSED           [ 15%]
+tests/test_allocation.py::test_cannot_allocate_twice PASSED              [ 20%]
+tests/test_allocation.py::test_audit_trail_written PASSED                [ 25%]
+tests/test_allocation.py::test_check_constraint_blocks_over_reservation PASSED [ 30%]
+tests/test_api.py::test_kpis PASSED                                      [ 35%]
+tests/test_api.py::test_pagination PASSED                                [ 40%]
+tests/test_api.py::test_filter_works PASSED                              [ 45%]
+tests/test_api.py::test_validation_rejects_bad_enum PASSED               [ 50%]
+tests/test_api.py::test_duplicate_key_returns_409_not_500 PASSED         [ 55%]
+tests/test_api.py::test_error_does_not_leak_internals PASSED             [ 60%]
+tests/test_api.py::test_incidents_schema_variation PASSED                [ 65%]
+tests/test_auth.py::test_health PASSED                                   [ 70%]
+tests/test_auth.py::test_login_success PASSED                            [ 75%]
+tests/test_auth.py::test_login_wrong_password PASSED                     [ 80%]
+tests/test_auth.py::test_login_unknown_user_same_error PASSED            [ 85%]
+tests/test_auth.py::test_sql_injection_neutralised PASSED                [ 90%]
+tests/test_auth.py::test_protected_route_requires_token PASSED           [ 95%]
+tests/test_auth.py::test_rbac_forbids_non_admin PASSED                   [100%]
+
+=============================== warnings summary ===============================
+../../../../../opt/anaconda3/envs/medsupply/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /opt/anaconda3/envs/medsupply/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 20 passed, 1 warning in 1.56s =========================

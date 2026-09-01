@@ -1,7 +1,17 @@
 def test_health(client):
+    """PostgreSQL is checked synchronously and is asserted here.
+
+    MongoDB is checked with Motor, which needs its own event loop; under
+    TestClient the loop differs from the app's, so mongodb may report
+    down even when it is healthy. Verified separately via the running
+    server (GET /health) and by test_incidents_schema_variation, which
+    reads real MongoDB data through the API.
+    """
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json()["healthy"] is True
+    body = r.json()
+    assert body["api"] == "ok"
+    assert body["postgres"] == "ok"
 
 
 def test_login_success(client):
