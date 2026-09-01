@@ -12,6 +12,7 @@ import Shipments from './pages/Shipments'
 import Suppliers from './pages/Suppliers'
 import Incidents from './pages/Incidents'
 import Analytics from './pages/Analytics'
+import DbmsDemos from './pages/DbmsDemos'
 
 function Shell() {
   const { user } = useAuth()
@@ -31,6 +32,7 @@ function Shell() {
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="incidents" element={<Incidents />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="dbms" element={<DbmsDemos />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
