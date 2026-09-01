@@ -1,0 +1,41 @@
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=67.89..772.81 rows=76 width=55) (actual time=0.640..4.314 rows=72 loops=1)
+   Recheck Cond: (warehouse_id = 5)
+   Filter: (medicine_id = 12)
+   Rows Removed by Filter: 1464
+   Heap Blocks: exact=605
+   Buffers: shared hit=621
+   ->  Bitmap Index Scan on uq_batch_natural  (cost=0.00..67.88 rows=1528 width=0) (actual time=0.543..0.543 rows=1536 loops=1)
+         Index Cond: (warehouse_id = 5)
+         Buffers: shared hit=16
+ Planning:
+   Buffers: shared hit=111
+ Planning Time: 1.203 ms
+ Execution Time: 4.477 ms
+(13 rows)
+
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Seq Scan on inventory_batch  (cost=0.00..1432.00 rows=11404 width=55) (actual time=0.005..4.252 rows=11402 loops=1)
+   Filter: (expiry_date < '2027-01-01'::date)
+   Rows Removed by Filter: 48598
+   Buffers: shared hit=682
+ Planning:
+   Buffers: shared hit=98
+ Planning Time: 0.157 ms
+ Execution Time: 4.625 ms
+(8 rows)
+
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Seq Scan on emergency_request  (cost=0.00..1313.00 rows=1279 width=121) (actual time=0.016..5.163 rows=1227 loops=1)
+   Filter: (((request_status)::text = 'PENDING'::text) AND ((priority)::text = 'CRITICAL'::text))
+   Rows Removed by Filter: 48773
+   Buffers: shared hit=563
+ Planning:
+   Buffers: shared hit=90 dirtied=2
+ Planning Time: 0.239 ms
+ Execution Time: 5.229 ms
+(8 rows)
+
