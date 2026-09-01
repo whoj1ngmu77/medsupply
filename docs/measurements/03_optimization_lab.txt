@@ -1,0 +1,188 @@
+Pager usage is off.
+=========== A. SELECTION PUSHDOWN ===========
+--- A1: filter applied AFTER the join
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=1.41..1471.29 rows=30002 width=30) (actual time=0.060..15.051 rows=30174 loops=1)
+   Hash Cond: (b.medicine_id = m.medicine_id)
+   Buffers: shared hit=683
+   ->  Seq Scan on inventory_batch b  (cost=0.00..1282.03 rows=60003 width=12) (actual time=0.006..6.297 rows=60003 loops=1)
+         Buffers: shared hit=682
+   ->  Hash  (cost=1.27..1.27 rows=11 width=26) (actual time=0.028..0.029 rows=11 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 9kB
+         Buffers: shared hit=1
+         ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=11 width=26) (actual time=0.015..0.017 rows=11 loops=1)
+               Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+               Rows Removed by Filter: 11
+               Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=281
+ Planning Time: 1.806 ms
+ Execution Time: 16.134 ms
+(16 rows)
+
+--- A2: filter pushed BEFORE the join
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=1.41..1471.29 rows=30002 width=30) (actual time=0.015..11.983 rows=30174 loops=1)
+   Hash Cond: (b.medicine_id = m.medicine_id)
+   Buffers: shared hit=683
+   ->  Seq Scan on inventory_batch b  (cost=0.00..1282.03 rows=60003 width=12) (actual time=0.004..4.158 rows=60003 loops=1)
+         Buffers: shared hit=682
+   ->  Hash  (cost=1.27..1.27 rows=11 width=26) (actual time=0.008..0.009 rows=11 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 9kB
+         Buffers: shared hit=1
+         ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=11 width=26) (actual time=0.004..0.005 rows=11 loops=1)
+               Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+               Rows Removed by Filter: 11
+               Buffers: shared hit=1
+ Planning Time: 0.098 ms
+ Execution Time: 13.103 ms
+(14 rows)
+
+
+=========== B. PROJECTION PUSHDOWN ===========
+--- B1: SELECT *
+                                                          QUERY PLAN                                                          
+------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=76.28..796.78 rows=3080 width=55) (actual time=0.505..1.459 rows=3016 loops=1)
+   Recheck Cond: (medicine_id = 12)
+   Heap Blocks: exact=675
+   Buffers: shared hit=688 read=1
+   ->  Bitmap Index Scan on idx_batch_fefo  (cost=0.00..75.52 rows=3080 width=0) (actual time=0.433..0.433 rows=3016 loops=1)
+         Index Cond: (medicine_id = 12)
+         Buffers: shared hit=13 read=1
+ Planning:
+   Buffers: shared hit=18
+ Planning Time: 0.178 ms
+ Execution Time: 1.591 ms
+(11 rows)
+
+--- B2: only the needed columns (index-only scan candidate)
+                                                                 QUERY PLAN                                                                  
+---------------------------------------------------------------------------------------------------------------------------------------------
+ Index Only Scan using idx_batch_fefo on inventory_batch  (cost=0.41..114.31 rows=3080 width=8) (actual time=0.032..0.355 rows=3016 loops=1)
+   Index Cond: (medicine_id = 12)
+   Heap Fetches: 10
+   Buffers: shared hit=21
+ Planning Time: 0.045 ms
+ Execution Time: 0.475 ms
+(6 rows)
+
+
+=========== C. JOIN ORDERING ===========
+--- C1: planner free to choose
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=1231.72..1233.72 rows=200 width=36) (actual time=7.700..7.719 rows=200 loops=1)
+   Group Key: h.name
+   Batches: 1  Memory Usage: 64kB
+   Buffers: shared hit=568
+   ->  Hash Join  (cost=9.91..1219.61 rows=2422 width=28) (actual time=0.154..7.212 rows=2522 loops=1)
+         Hash Cond: (r.hospital_id = h.hospital_id)
+         Buffers: shared hit=568
+         ->  Hash Join  (cost=1.41..1204.62 rows=2422 width=4) (actual time=0.061..6.698 rows=2522 loops=1)
+               Hash Cond: (r.medicine_id = m.medicine_id)
+               Buffers: shared hit=564
+               ->  Seq Scan on emergency_request r  (cost=0.00..1188.04 rows=4845 width=8) (actual time=0.014..6.067 rows=4928 loops=1)
+                     Filter: ((priority)::text = 'CRITICAL'::text)
+                     Rows Removed by Filter: 45075
+                     Buffers: shared hit=563
+               ->  Hash  (cost=1.27..1.27 rows=11 width=4) (actual time=0.011..0.012 rows=11 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                     Buffers: shared hit=1
+                     ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=11 width=4) (actual time=0.005..0.007 rows=11 loops=1)
+                           Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+                           Rows Removed by Filter: 11
+                           Buffers: shared hit=1
+         ->  Hash  (cost=6.00..6.00 rows=200 width=32) (actual time=0.071..0.071 rows=200 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 21kB
+               Buffers: shared hit=4
+               ->  Seq Scan on hospital h  (cost=0.00..6.00 rows=200 width=32) (actual time=0.003..0.043 rows=200 loops=1)
+                     Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=167 read=2
+ Planning Time: 0.757 ms
+ Execution Time: 7.788 ms
+(30 rows)
+
+--- C2: join order forced (join_collapse_limit = 1)
+SET
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=1238.21..1240.21 rows=200 width=36) (actual time=4.835..4.854 rows=200 loops=1)
+   Group Key: h.name
+   Batches: 1  Memory Usage: 64kB
+   Buffers: shared hit=568
+   ->  Hash Join  (cost=9.91..1226.10 rows=2422 width=28) (actual time=0.096..4.413 rows=2522 loops=1)
+         Hash Cond: (r.medicine_id = m.medicine_id)
+         Buffers: shared hit=568
+         ->  Hash Join  (cost=8.50..1209.52 rows=4845 width=32) (actual time=0.077..3.875 rows=4928 loops=1)
+               Hash Cond: (r.hospital_id = h.hospital_id)
+               Buffers: shared hit=567
+               ->  Seq Scan on emergency_request r  (cost=0.00..1188.04 rows=4845 width=8) (actual time=0.003..3.062 rows=4928 loops=1)
+                     Filter: ((priority)::text = 'CRITICAL'::text)
+                     Rows Removed by Filter: 45075
+                     Buffers: shared hit=563
+               ->  Hash  (cost=6.00..6.00 rows=200 width=32) (actual time=0.065..0.066 rows=200 loops=1)
+                     Buckets: 1024  Batches: 1  Memory Usage: 21kB
+                     Buffers: shared hit=4
+                     ->  Seq Scan on hospital h  (cost=0.00..6.00 rows=200 width=32) (actual time=0.003..0.038 rows=200 loops=1)
+                           Buffers: shared hit=4
+         ->  Hash  (cost=1.27..1.27 rows=11 width=4) (actual time=0.017..0.017 rows=11 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               Buffers: shared hit=1
+               ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=11 width=4) (actual time=0.004..0.006 rows=11 loops=1)
+                     Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+                     Rows Removed by Filter: 11
+                     Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=15
+ Planning Time: 0.144 ms
+ Execution Time: 4.885 ms
+(30 rows)
+
+RESET
+
+=========== D. INDEX SCAN vs SEQ SCAN ===========
+--- D1: selective predicate (index expected)
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=5.10..231.67 rows=79 width=55) (actual time=0.039..0.107 rows=72 loops=1)
+   Recheck Cond: ((warehouse_id = 5) AND (medicine_id = 12))
+   Heap Blocks: exact=69
+   Buffers: shared hit=71
+   ->  Bitmap Index Scan on idx_batch_wh_med  (cost=0.00..5.08 rows=79 width=0) (actual time=0.030..0.030 rows=72 loops=1)
+         Index Cond: ((warehouse_id = 5) AND (medicine_id = 12))
+         Buffers: shared hit=2
+ Planning Time: 0.044 ms
+ Execution Time: 0.133 ms
+(9 rows)
+
+--- D2: index disabled by force
+SET
+SET
+                                                  QUERY PLAN                                                   
+---------------------------------------------------------------------------------------------------------------
+ Seq Scan on inventory_batch  (cost=0.00..1582.05 rows=79 width=55) (actual time=0.029..3.001 rows=72 loops=1)
+   Filter: ((warehouse_id = 5) AND (medicine_id = 12))
+   Rows Removed by Filter: 59931
+   Buffers: shared hit=682
+ Planning Time: 0.030 ms
+ Execution Time: 3.009 ms
+(6 rows)
+
+RESET
+RESET
+--- D3: unselective predicate — seq scan is CORRECT here
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Seq Scan on inventory_batch  (cost=0.00..1432.04 rows=59997 width=55) (actual time=0.003..5.390 rows=60003 loops=1)
+   Filter: (qty_on_hand > 0)
+   Buffers: shared hit=682
+ Planning:
+   Buffers: shared hit=3
+ Planning Time: 0.035 ms
+ Execution Time: 7.895 ms
+(7 rows)
+

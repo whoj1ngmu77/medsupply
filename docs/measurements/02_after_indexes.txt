@@ -1,0 +1,105 @@
+Pager usage is off.
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=5.10..231.67 rows=79 width=55) (actual time=0.085..0.702 rows=72 loops=1)
+   Recheck Cond: ((warehouse_id = 5) AND (medicine_id = 12))
+   Heap Blocks: exact=69
+   Buffers: shared hit=69 read=2
+   ->  Bitmap Index Scan on idx_batch_wh_med  (cost=0.00..5.08 rows=79 width=0) (actual time=0.057..0.057 rows=72 loops=1)
+         Index Cond: ((warehouse_id = 5) AND (medicine_id = 12))
+         Buffers: shared read=2
+ Planning:
+   Buffers: shared hit=178 read=3
+ Planning Time: 1.486 ms
+ Execution Time: 0.837 ms
+(11 rows)
+
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=68.42..856.06 rows=4695 width=21) (actual time=0.401..2.364 rows=4632 loops=1)
+   Recheck Cond: ((expiry_date >= CURRENT_DATE) AND (expiry_date <= (CURRENT_DATE + 90)))
+   Heap Blocks: exact=681
+   Buffers: shared hit=681 read=6
+   ->  Bitmap Index Scan on idx_batch_expiry  (cost=0.00..67.25 rows=4695 width=0) (actual time=0.340..0.340 rows=4632 loops=1)
+         Index Cond: ((expiry_date >= CURRENT_DATE) AND (expiry_date <= (CURRENT_DATE + 90)))
+         Buffers: shared read=6
+ Planning:
+   Buffers: shared hit=14
+ Planning Time: 0.083 ms
+ Execution Time: 2.547 ms
+(11 rows)
+
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on emergency_request  (cost=21.45..609.94 rows=1699 width=12) (actual time=0.218..1.277 rows=1747 loops=1)
+   Recheck Cond: (((priority)::text = 'CRITICAL'::text) AND ((request_status)::text = ANY ('{PENDING,PARTIAL}'::text[])))
+   Heap Blocks: exact=547
+   Buffers: shared hit=547 read=4
+   ->  Bitmap Index Scan on idx_request_open  (cost=0.00..21.03 rows=1699 width=0) (actual time=0.169..0.169 rows=1747 loops=1)
+         Index Cond: ((priority)::text = 'CRITICAL'::text)
+         Buffers: shared read=4
+ Planning:
+   Buffers: shared hit=131 read=2
+ Planning Time: 0.294 ms
+ Execution Time: 1.350 ms
+(11 rows)
+
+                                                             QUERY PLAN                                                             
+------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=871.70..874.06 rows=944 width=12) (actual time=1.768..1.907 rows=2765 loops=1)
+   Sort Key: expiry_date, batch_id
+   Sort Method: quicksort  Memory: 205kB
+   Buffers: shared hit=680 read=13
+   ->  Bitmap Heap Scan on inventory_batch  (cost=76.97..825.05 rows=944 width=12) (actual time=0.377..1.172 rows=2765 loops=1)
+         Recheck Cond: ((medicine_id = 12) AND (expiry_date > CURRENT_DATE))
+         Filter: ((qty_on_hand - qty_reserved) > 0)
+         Heap Blocks: exact=674
+         Buffers: shared hit=674 read=13
+         ->  Bitmap Index Scan on idx_batch_fefo  (cost=0.00..76.74 rows=2832 width=0) (actual time=0.318..0.318 rows=2765 loops=1)
+               Index Cond: ((medicine_id = 12) AND (expiry_date > CURRENT_DATE))
+               Buffers: shared read=13
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.050 ms
+ Execution Time: 2.086 ms
+(16 rows)
+
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..162.32 rows=50 width=29) (actual time=0.039..0.066 rows=50 loops=1)
+   Buffers: shared hit=50 read=2
+   ->  Index Scan using idx_request_hospital on emergency_request  (cost=0.29..901.15 rows=278 width=29) (actual time=0.038..0.062 rows=50 loops=1)
+         Index Cond: (hospital_id = 42)
+         Buffers: shared hit=50 read=2
+ Planning:
+   Buffers: shared hit=19
+ Planning Time: 0.065 ms
+ Execution Time: 0.074 ms
+(9 rows)
+
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=1963.02..1963.13 rows=11 width=20) (actual time=15.829..15.832 rows=11 loops=1)
+   Group Key: m.name
+   Batches: 1  Memory Usage: 24kB
+   Buffers: shared hit=683
+   ->  Hash Join  (cost=1.41..1756.15 rows=27582 width=20) (actual time=0.026..12.015 rows=27760 loops=1)
+         Hash Cond: (b.medicine_id = m.medicine_id)
+         Buffers: shared hit=683
+         ->  Seq Scan on inventory_batch b  (cost=0.00..1582.05 rows=55164 width=12) (actual time=0.004..5.950 rows=55199 loops=1)
+               Filter: (expiry_date > CURRENT_DATE)
+               Rows Removed by Filter: 4804
+               Buffers: shared hit=682
+         ->  Hash  (cost=1.27..1.27 rows=11 width=16) (actual time=0.020..0.020 rows=11 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               Buffers: shared hit=1
+               ->  Seq Scan on medicine m  (cost=0.00..1.27 rows=11 width=16) (actual time=0.015..0.017 rows=11 loops=1)
+                     Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+                     Rows Removed by Filter: 11
+                     Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=57 read=1
+ Planning Time: 0.272 ms
+ Execution Time: 15.848 ms
+(22 rows)
+

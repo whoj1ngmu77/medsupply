@@ -1,0 +1,102 @@
+Pager usage is off.
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on inventory_batch  (cost=67.89..772.81 rows=76 width=55) (actual time=0.818..5.499 rows=72 loops=1)
+   Recheck Cond: (warehouse_id = 5)
+   Filter: (medicine_id = 12)
+   Rows Removed by Filter: 1464
+   Heap Blocks: exact=605
+   Buffers: shared hit=621
+   ->  Bitmap Index Scan on uq_batch_natural  (cost=0.00..67.88 rows=1528 width=0) (actual time=0.652..0.652 rows=1536 loops=1)
+         Index Cond: (warehouse_id = 5)
+         Buffers: shared hit=16
+ Planning:
+   Buffers: shared hit=111
+ Planning Time: 0.896 ms
+ Execution Time: 5.641 ms
+(13 rows)
+
+                                                    QUERY PLAN                                                     
+-------------------------------------------------------------------------------------------------------------------
+ Seq Scan on inventory_batch  (cost=0.00..2032.00 rows=4651 width=21) (actual time=0.007..5.447 rows=4632 loops=1)
+   Filter: ((expiry_date >= CURRENT_DATE) AND (expiry_date <= (CURRENT_DATE + 90)))
+   Rows Removed by Filter: 55371
+   Buffers: shared hit=682
+ Planning:
+   Buffers: shared hit=11
+ Planning Time: 0.096 ms
+ Execution Time: 5.615 ms
+(8 rows)
+
+                                                     QUERY PLAN                                                      
+---------------------------------------------------------------------------------------------------------------------
+ Seq Scan on emergency_request  (cost=0.00..1313.00 rows=1771 width=12) (actual time=0.011..6.414 rows=1747 loops=1)
+   Filter: (((request_status)::text = ANY ('{PENDING,PARTIAL}'::text[])) AND ((priority)::text = 'CRITICAL'::text))
+   Rows Removed by Filter: 48256
+   Buffers: shared hit=563
+ Planning:
+   Buffers: shared hit=91
+ Planning Time: 0.214 ms
+ Execution Time: 6.509 ms
+(8 rows)
+
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=2079.06..2081.34 rows=911 width=12) (actual time=4.090..4.220 rows=2765 loops=1)
+   Sort Key: expiry_date, batch_id
+   Sort Method: quicksort  Memory: 205kB
+   Buffers: shared hit=688
+   ->  Seq Scan on inventory_batch  (cost=0.00..2034.28 rows=911 width=12) (actual time=0.004..3.514 rows=2765 loops=1)
+         Filter: ((medicine_id = 12) AND (expiry_date > CURRENT_DATE) AND ((qty_on_hand - qty_reserved) > 0))
+         Rows Removed by Filter: 57238
+         Buffers: shared hit=682
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.069 ms
+ Execution Time: 4.380 ms
+(12 rows)
+
+                                                          QUERY PLAN                                                           
+-------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=1196.07..1196.20 rows=50 width=29) (actual time=2.006..2.013 rows=50 loops=1)
+   Buffers: shared hit=566
+   ->  Sort  (cost=1196.07..1196.68 rows=243 width=29) (actual time=2.006..2.008 rows=50 loops=1)
+         Sort Key: requested_at DESC
+         Sort Method: top-N heapsort  Memory: 30kB
+         Buffers: shared hit=566
+         ->  Seq Scan on emergency_request  (cost=0.00..1188.00 rows=243 width=29) (actual time=0.007..1.953 rows=259 loops=1)
+               Filter: (hospital_id = 42)
+               Rows Removed by Filter: 49744
+               Buffers: shared hit=563
+ Planning:
+   Buffers: shared hit=17
+ Planning Time: 0.087 ms
+ Execution Time: 2.027 ms
+(14 rows)
+
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ HashAggregate  (cost=1749.42..1749.43 rows=1 width=326) (actual time=13.403..13.407 rows=11 loops=1)
+   Group Key: m.name
+   Batches: 1  Memory Usage: 24kB
+   Buffers: shared hit=683
+   ->  Hash Join  (cost=11.14..1744.83 rows=613 width=326) (actual time=0.038..10.185 rows=27760 loops=1)
+         Hash Cond: (b.medicine_id = m.medicine_id)
+         Buffers: shared hit=683
+         ->  Seq Scan on inventory_batch b  (cost=0.00..1582.00 rows=55188 width=12) (actual time=0.004..5.201 rows=55199 loops=1)
+               Filter: (expiry_date > CURRENT_DATE)
+               Rows Removed by Filter: 4804
+               Buffers: shared hit=682
+         ->  Hash  (cost=11.12..11.12 rows=1 width=322) (actual time=0.016..0.017 rows=11 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               Buffers: shared hit=1
+               ->  Seq Scan on medicine m  (cost=0.00..11.12 rows=1 width=322) (actual time=0.010..0.012 rows=11 loops=1)
+                     Filter: ((criticality)::text = 'LIFE_SAVING'::text)
+                     Rows Removed by Filter: 11
+                     Buffers: shared hit=1
+ Planning:
+   Buffers: shared hit=51
+ Planning Time: 0.219 ms
+ Execution Time: 13.429 ms
+(22 rows)
+
