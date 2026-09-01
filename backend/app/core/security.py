@@ -1,10 +1,15 @@
 """Password hashing and JWT token handling."""
+import logging
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+
+# passlib probes for bcrypt.__about__, removed in bcrypt 4.x.
+# Harmless — hashing works; the probe just logs a traceback.
+logging.getLogger("passlib.handlers.bcrypt").setLevel(logging.ERROR)
 
 # bcrypt with an explicit cost factor. 12 rounds is the current sane default:
 # high enough to make offline brute force expensive, low enough that login
