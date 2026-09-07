@@ -31,10 +31,14 @@ class Settings(BaseSettings):
 
     @property
     def mongo_url(self) -> str:
-        return (
-            f"mongodb://{self.mongo_user}:{self.mongo_password}"
-            f"@{self.mongo_host}:{self.mongo_port}/?authSource=admin"
-        )
+        # A locally-started mongod runs without auth; the containerised one
+        # has a root user. Send credentials only when they are configured.
+        if self.mongo_user and self.mongo_password:
+            return (
+                f"mongodb://{self.mongo_user}:{self.mongo_password}"
+                f"@{self.mongo_host}:{self.mongo_port}/?authSource=admin"
+            )
+        return f"mongodb://{self.mongo_host}:{self.mongo_port}"
 
 
 settings = Settings()
