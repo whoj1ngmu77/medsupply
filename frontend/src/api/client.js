@@ -1,4 +1,6 @@
-const BASE = '/api'
+// Dev: Vite proxies /api to localhost:8000.
+// Prod: VITE_API_URL points at the deployed backend.
+const BASE = import.meta.env.VITE_API_URL || '/api'
 
 let authToken = null
 export const setToken = (t) => { authToken = t }
