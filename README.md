@@ -1,6 +1,6 @@
 # MedSupply — Emergency Medical Supply Management System
+<img width="2624" height="1524" alt="image" src="https://github.com/user-attachments/assets/39047fdc-c563-4dd3-9f7e-02fb2def0a44" />
 
-**BCSE302L · Database Systems · VIT Chennai**
 
 A centralised system for allocating scarce medical supplies to hospitals
 during emergencies, and for keeping warehouse stock replenished
@@ -49,6 +49,7 @@ WHERE medicine_id = :m AND qty_on_hand > qty_reserved
 ORDER BY expiry_date ASC, batch_id ASC
 FOR UPDATE;
 ```
+<img width="2620" height="1556" alt="image" src="https://github.com/user-attachments/assets/7cbc5584-54c5-43b5-b351-74b7bc0e0df3" />
 
 Two things are happening:
 
