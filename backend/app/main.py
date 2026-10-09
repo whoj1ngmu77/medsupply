@@ -10,7 +10,7 @@ from app.core.exceptions import (integrity_error_handler,
                                  sqlalchemy_error_handler)
 from app.db.mongo import mongo_client, mongo_db
 from app.db.postgres import engine
-from app.routers import (analytics, auth, dbms_concurrency,
+from app.routers import (analytics, auth, replenishment, dbms_concurrency,
                          dbms_demo,
                          hospitals, incidents, inventory,
                          nosql_demo,
@@ -23,7 +23,13 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # The automatic replenishment loops start here. @app.on_event is
+    # ignored by FastAPI whenever a lifespan handler is present, so the
+    # scheduler must be started and stopped inside this function.
+    from app.services import scheduler as _replen_scheduler
+    await _replen_scheduler.start()
     yield
+    await _replen_scheduler.stop()
     mongo_client.close()
     engine.dispose()
 
@@ -31,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="MedSupply API",
     description="Emergency Medical Supply Management System - BCSE302L",
-    version="0.9.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
@@ -59,11 +65,12 @@ app.include_router(dbms_concurrency.router)
 app.include_router(incidents.router)
 app.include_router(nosql_demo.router)
 app.include_router(analytics.router)
+app.include_router(replenishment.router)
 
 
 @app.get("/")
 def root():
-    return {"service": "MedSupply API", "version": "0.9.0"}
+    return {"service": "MedSupply API", "version": "1.0.0"}
 
 
 @app.get("/health")
@@ -85,3 +92,15 @@ async def health():
 
     status["healthy"] = status["postgres"] == "ok" and status["mongodb"] == "ok"
     return status
+
+
+# ---------------------------------------------------------------------
+# Automatic replenishment scheduler
+# ---------------------------------------------------------------------
+from app.services import scheduler as _replen_scheduler    # noqa: E402
+
+
+@app.get("/replenishment/scheduler", tags=["Auto Replenishment"])
+def replenishment_scheduler_state() -> dict:
+    """Proof the scans are running on their own, with no user action."""
+    return _replen_scheduler.STATE

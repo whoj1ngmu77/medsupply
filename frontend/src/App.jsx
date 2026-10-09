@@ -11,6 +11,8 @@ import Requests from './pages/Requests'
 import Shipments from './pages/Shipments'
 import Suppliers from './pages/Suppliers'
 import Incidents from './pages/Incidents'
+import Overview from './pages/Overview'
+import Replenishment from './pages/Replenishment'
 import Analytics from './pages/Analytics'
 import DbmsDemos from './pages/DbmsDemos'
 
@@ -23,6 +25,7 @@ function Shell() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="overview" element={<Overview />} />
           <Route path="hospitals" element={<Hospitals />} />
           <Route path="medicines" element={<Medicines />} />
           <Route path="warehouses" element={<Warehouses />} />
@@ -30,6 +33,7 @@ function Shell() {
           <Route path="requests" element={<Requests />} />
           <Route path="shipments" element={<Shipments />} />
           <Route path="suppliers" element={<Suppliers />} />
+          <Route path="replenishment" element={<Replenishment />} />
           <Route path="incidents" element={<Incidents />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="dbms" element={<DbmsDemos />} />

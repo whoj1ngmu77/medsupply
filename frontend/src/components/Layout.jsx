@@ -1,12 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
-  Activity, AlertTriangle, Boxes, Building2, Database, FlaskConical,
+  Activity, AlertTriangle, BookOpen, RefreshCw, Boxes, Building2, Database, FlaskConical,
   LayoutDashboard, LogOut, Package, Send, Truck, Users,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/overview', label: 'Project Overview', icon: BookOpen },
   { to: '/hospitals', label: 'Hospitals', icon: Building2 },
   { to: '/medicines', label: 'Medicines', icon: FlaskConical },
   { to: '/warehouses', label: 'Warehouses', icon: Boxes },
@@ -14,6 +15,7 @@ const NAV = [
   { to: '/requests', label: 'Requests', icon: Send },
   { to: '/shipments', label: 'Shipments', icon: Truck },
   { to: '/suppliers', label: 'Suppliers', icon: Users },
+  { to: '/replenishment', label: 'Auto Stock-Up', icon: RefreshCw },
   { to: '/incidents', label: 'Incidents', icon: AlertTriangle },
   { to: '/analytics', label: 'Analytics', icon: Activity },
   { to: '/dbms', label: 'DBMS Demos', icon: Database,
